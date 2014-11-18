@@ -1,9 +1,12 @@
 package com.talosdigital;
 
+import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Inverted Index in-memory implementation
@@ -11,6 +14,8 @@ import com.google.common.collect.Ordering;
 public class InvertedIndex {
     protected Map<String, Map<Integer, Integer>> inverted;
     protected Vector<String> docs;
+    protected static final String TOKENIZER_REGEX = "\\W+";
+    public static final Logger LOG = LoggerFactory.getLogger(InvertedIndex.class);
     protected static final List<String> stopwords = Arrays.asList("a", "able", "about",
             "across", "after", "all", "almost", "also", "am", "among", "an",
             "and", "any", "are", "as", "at", "be", "because", "been", "but",
@@ -60,7 +65,7 @@ public class InvertedIndex {
         }
 
         // index the content for search purposes
-        for (String term : doc.split("\\W+")) {
+        for (String term : doc.split(TOKENIZER_REGEX)) {
             if (stopwords.contains(term)) continue;
             if (false == inverted.containsKey(term)) {
                 // add a new list
@@ -88,20 +93,20 @@ public class InvertedIndex {
     public Vector<String> search(String query) {
         Vector<String> response = new Vector<String>(); // holds the docs to be returned
 
-        Set<Integer> docIds = new HashSet<Integer>();
+        Set<Integer> matchedDocs = new HashSet<Integer>();
         query = query.toLowerCase();
 
-        for (String term : query.split("\\W+")) {
+        for (String term : query.split(TOKENIZER_REGEX)) {
             if (stopwords.contains(term)) continue;
             if (inverted.containsKey(term)) {
-                docIds.addAll(inverted.get(term).keySet());
+                matchedDocs.addAll(inverted.get(term).keySet());
             }
         }
 
         // until here we have all the documents that has any of the keywords
         // order documents by TF-IDF before fetching the documents
         HashMap<Integer, Double> scoredDocs = new HashMap<Integer, Double>();
-        for (int docId : docIds) {
+        for (int docId : matchedDocs) {
             double score = 0.0;
 
             for (String term : query.split("\\W+")) {
@@ -109,12 +114,17 @@ public class InvertedIndex {
 //                double idf = Math.log10(docs.size() / (double) inverted.get(term).size());
                 double idf = Math.pow((1 + Math.log10(docs.size() / (double) inverted.get(term).size() + 1)), 2);
                 score += tf * idf;
-//
-//                System.out.println("tf: " + tf);
-//                System.out.println("idf: " + idf);
+
+                if (LOG.isDebugEnabled()) {
+                    LOG.info("tf: " + tf);
+                    LOG.info("idf: " + tf);
+                }
             }
 
-//            System.out.println("score: " + score);
+            if (LOG.isDebugEnabled()) {
+                LOG.info("score: " + score);
+            }
+
             scoredDocs.put(docId, score);
         }
 
@@ -141,17 +151,17 @@ public class InvertedIndex {
         return search(query);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        System.in.read();
+
         InvertedIndex index = new InvertedIndex();
-//        index.indexDocument("hello. world!");
-//        index.indexDocument("there hello");
-//        index.indexDocument("this is my hole world world");
+
         String[] data = new String[]{
                 "A brilliant, festive study of JS Bach uses literature and painting to illuminate his 'dance-impregnated' music, writes Peter Conrad",
                 "Fatima Bhutto on Malala Yousafzai's fearless and still-controversial memoir",
                 "Grisham's sequel to A Time to Kill is a solid courtroom drama about racial prejudice marred by a flawless white hero, writes John O'Connell",
                 "This strange repackaging of bits and pieces does the Man Booker winner no favours, says Sam Leith",
-                "Another book with music related content"
+                "Another book with music related content music"
         };
 
         for (String str : data) {
@@ -160,11 +170,12 @@ public class InvertedIndex {
 
         Vector<String> results = index.search("music");
 
-//        System.out.println(index.getInverted());
         System.out.println(results.size() + " documents found");
 
         for (String doc : results) {
             System.out.println(doc);
         }
+
+        System.in.read();
     }
 }
