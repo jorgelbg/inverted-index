@@ -1,10 +1,13 @@
 import java.util.*;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Ordering;
+
 /**
  * Inverted Index in-memory implementation
  */
 public class InvertedIndex {
-    protected Map<String, ArrayList<Integer>> inverted;
+    protected Map<String, Map<Integer, Integer>> inverted;
     protected Vector<String> docs;
     //    protected static final String TOKENIZER_DIVIDER = " \t\n\r\f,.:;?![]'";
     protected static final List<String> stopwords = Arrays.asList("a", "able", "about",
@@ -25,15 +28,19 @@ public class InvertedIndex {
 
     public InvertedIndex() {
         this.docs = new Vector<String>();
-        this.inverted = new HashMap<String, ArrayList<Integer>>();
+        this.inverted = new HashMap<String, Map<Integer, Integer>>();
     }
 
-    public Map<String, ArrayList<Integer>> getInverted() {
+    public Map<String, Map<Integer, Integer>> getInverted() {
         return inverted;
     }
 
-    public void setInverted(Map<String, ArrayList<Integer>> inverted) {
+    public void setInverted(Map<String, Map<Integer, Integer>> inverted) {
         this.inverted = inverted;
+    }
+
+    public static List<String> getStopwords() {
+        return stopwords;
     }
 
     public Vector<String> getDocs() {
@@ -52,53 +59,97 @@ public class InvertedIndex {
         }
 
         // index the content for search purposes
-        for (String word : doc.split("\\W+")) {
-            if (stopwords.contains(word)) continue;
-            if (false == inverted.containsKey(word)) {
+        for (String term : doc.split("\\W+")) {
+            if (stopwords.contains(term)) continue;
+            if (false == inverted.containsKey(term)) {
                 // add a new list
-                ArrayList<Integer> list = new ArrayList<Integer>();
-                list.add(docs.indexOf(doc));
+                Map<Integer, Integer> list = new HashMap<Integer, Integer>();
+                list.put(docs.indexOf(doc), 1);
 
-                inverted.put(word, list);
+                inverted.put(term, list);
             } else {
-                ArrayList<Integer> list = inverted.get(word);
-                list.add(docs.indexOf(doc));
+                Map<Integer, Integer> list = inverted.get(term);
+                // check if is a term in the same doc
+                int docId = docs.indexOf(doc);
 
-                inverted.put(word, list);
+                if (list.containsKey(docId)) {
+                    int amount = list.get(docId);
+                    list.put(docId, ++amount);
+                } else {
+                    list.put(docId, 1);
+                }
+
+                inverted.put(term, list);
             }
         }
     }
 
     public Vector<String> search(String query) {
         Vector<String> response = new Vector<String>(); // holds the docs to be returned
+
         Set<Integer> docIds = new HashSet<Integer>();
         query = query.toLowerCase();
 
-        for (String word : query.split("\\W+")) {
-            if (stopwords.contains(word)) continue;
-            if (inverted.containsKey(word)) {
-                docIds.addAll(inverted.get(word));
+        for (String term : query.split("\\W+")) {
+            if (stopwords.contains(term)) continue;
+            if (inverted.containsKey(term)) {
+                docIds.addAll(inverted.get(term).keySet());
             }
         }
 
+        // until here we have all the documents that has any of the keywords
+        // order documents by TF-IDF before fetching the documents
+        HashMap<Integer, Double> scoredDocs = new HashMap<Integer, Double>();
+        for (int docId : docIds) {
+            double score = 0.0;
+
+            for (String term : query.split("\\W+")) {
+                double tf = inverted.get(term).get(docId) == null ? 0 : inverted.get(term).get(docId);
+                tf = Math.sqrt(tf);
+//                double idf = Math.log10(docs.size() / (double) inverted.get(term).size());
+                double idf = Math.pow((1 + Math.log10(docs.size() / (double) inverted.get(term).size() + 1)), 2);
+                score += tf * idf * idf;
+//
+//                System.out.println("tf: " + tf);
+//                System.out.println("idf: " + idf);
+            }
+
+            System.out.println("score: " + score);
+            scoredDocs.put(docId, score);
+        }
+
+        Ordering<Map.Entry<Integer, Double>> byScore = new Ordering<Map.Entry<Integer, Double>>() {
+            @Override
+            public int compare(Map.Entry<Integer, Double> left, Map.Entry<Integer, Double> right) {
+                return left.getValue().compareTo(right.getValue());
+            }
+        };
+
+        ArrayList<Map.Entry<Integer, Double>> sortedDocIds = Lists.newArrayList(scoredDocs.entrySet());
+
+        Collections.sort(sortedDocIds, byScore.reverse());
+
         // collect the documents TODO: as a separated method to get from external sources?
-        for (Integer id : docIds) {
-            response.add(docs.get(id));
+        for (Map.Entry<Integer, Double> doc : sortedDocIds) {
+            response.add(docs.get(doc.getKey()));
         }
 
         return response;
     }
 
     public static void main(String[] args) {
-        System.out.println("Hello world!");
-
         InvertedIndex index = new InvertedIndex();
         index.indexDocument("hello. world!");
-        index.indexDocument("hello there");
+        index.indexDocument("there hello");
+        index.indexDocument("this is my hole world world");
 
-        Vector<String> results = index.search("hello");
+        Vector<String> results = index.search("hello world");
 
         System.out.println(index.getInverted());
         System.out.println(results.size() + " documents found");
+
+        for (String doc : results) {
+            System.out.println(doc);
+        }
     }
 }
