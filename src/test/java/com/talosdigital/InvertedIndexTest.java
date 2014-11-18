@@ -57,6 +57,6 @@ public class InvertedIndexTest {
 
         Vector<String> results = this.index.get("music");
 
-        assertEquals("For the 'music' query 2 documents must be found", 2, results.size());
+        assertEquals("For the query 'music' 2 documents must be found", 2, results.size());
     }
 }

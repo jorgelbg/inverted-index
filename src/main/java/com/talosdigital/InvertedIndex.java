@@ -166,6 +166,8 @@ public class InvertedIndex {
             index.indexDocument(str);
         }
 
+        System.out.println("query: music" );
+
         Vector<String> results = index.search("music");
 
         System.out.println(results.size() + " documents found");
