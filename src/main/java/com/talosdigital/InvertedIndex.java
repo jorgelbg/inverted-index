@@ -152,8 +152,6 @@ public class InvertedIndex {
     }
 
     public static void main(String[] args) throws IOException {
-        System.in.read();
-
         InvertedIndex index = new InvertedIndex();
 
         String[] data = new String[]{
@@ -175,7 +173,5 @@ public class InvertedIndex {
         for (String doc : results) {
             System.out.println(doc);
         }
-
-        System.in.read();
     }
 }
