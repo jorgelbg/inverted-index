@@ -1,3 +1,5 @@
+package com.talosdigital;
+
 import java.util.*;
 
 import com.google.common.collect.Lists;
@@ -9,7 +11,6 @@ import com.google.common.collect.Ordering;
 public class InvertedIndex {
     protected Map<String, Map<Integer, Integer>> inverted;
     protected Vector<String> docs;
-    //    protected static final String TOKENIZER_DIVIDER = " \t\n\r\f,.:;?![]'";
     protected static final List<String> stopwords = Arrays.asList("a", "able", "about",
             "across", "after", "all", "almost", "also", "am", "among", "an",
             "and", "any", "are", "as", "at", "be", "because", "been", "but",
@@ -104,17 +105,16 @@ public class InvertedIndex {
             double score = 0.0;
 
             for (String term : query.split("\\W+")) {
-                double tf = inverted.get(term).get(docId) == null ? 0 : inverted.get(term).get(docId);
-                tf = Math.sqrt(tf);
+                double tf = Math.sqrt(inverted.get(term).get(docId) == null ? 0 : inverted.get(term).get(docId));
 //                double idf = Math.log10(docs.size() / (double) inverted.get(term).size());
                 double idf = Math.pow((1 + Math.log10(docs.size() / (double) inverted.get(term).size() + 1)), 2);
-                score += tf * idf * idf;
+                score += tf * idf;
 //
 //                System.out.println("tf: " + tf);
 //                System.out.println("idf: " + idf);
             }
 
-            System.out.println("score: " + score);
+//            System.out.println("score: " + score);
             scoredDocs.put(docId, score);
         }
 
@@ -137,15 +137,30 @@ public class InvertedIndex {
         return response;
     }
 
+    public Vector<String> get(String query) {
+        return search(query);
+    }
+
     public static void main(String[] args) {
         InvertedIndex index = new InvertedIndex();
-        index.indexDocument("hello. world!");
-        index.indexDocument("there hello");
-        index.indexDocument("this is my hole world world");
+//        index.indexDocument("hello. world!");
+//        index.indexDocument("there hello");
+//        index.indexDocument("this is my hole world world");
+        String[] data = new String[]{
+                "A brilliant, festive study of JS Bach uses literature and painting to illuminate his 'dance-impregnated' music, writes Peter Conrad",
+                "Fatima Bhutto on Malala Yousafzai's fearless and still-controversial memoir",
+                "Grisham's sequel to A Time to Kill is a solid courtroom drama about racial prejudice marred by a flawless white hero, writes John O'Connell",
+                "This strange repackaging of bits and pieces does the Man Booker winner no favours, says Sam Leith",
+                "Another book with music related content"
+        };
 
-        Vector<String> results = index.search("hello world");
+        for (String str : data) {
+            index.indexDocument(str);
+        }
 
-        System.out.println(index.getInverted());
+        Vector<String> results = index.search("music");
+
+//        System.out.println(index.getInverted());
         System.out.println(results.size() + " documents found");
 
         for (String doc : results) {
