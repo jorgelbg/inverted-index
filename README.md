@@ -1,5 +1,5 @@
-Building instructions
-=====================
+Build instructions
+==================
 
 To build the `jar`
 

@@ -165,7 +165,10 @@ public class InvertedIndex {
         for (String str : data) {
             index.indexDocument(str);
         }
-
+//        compinit -i -d "${ZSH_COMPDUMP}"
+//        +#  prompt_status
+//                +#  prompt_virtualenv
+//                +#  prompt_context
         System.out.println("query: music" );
 
         Vector<String> results = index.search("music");
