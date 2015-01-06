@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  * Inverted Index in-memory implementation
  */
 public class InvertedIndex {
-    protected Map<String, Map<Integer, Integer>> inverted;
+    protected Map<String, Map<Integer, TermInfo>> inverted;
     protected Vector<String> docs;
     protected static final String TOKENIZER_REGEX = "\\W+";
     public static final Logger LOG = LoggerFactory.getLogger(InvertedIndex.class);
@@ -34,14 +34,14 @@ public class InvertedIndex {
 
     public InvertedIndex() {
         this.docs = new Vector<String>();
-        this.inverted = new HashMap<String, Map<Integer, Integer>>();
+        this.inverted = new HashMap<>();
     }
 
-    public Map<String, Map<Integer, Integer>> getInverted() {
+    public Map<String, Map<Integer, TermInfo>> getInverted() {
         return inverted;
     }
 
-    public void setInverted(Map<String, Map<Integer, Integer>> inverted) {
+    public void setInverted(Map<String, Map<Integer, TermInfo>> inverted) {
         this.inverted = inverted;
     }
 
@@ -60,33 +60,48 @@ public class InvertedIndex {
     public void indexDocument(String doc) {
         // add as an a stored document
         doc = doc.toLowerCase();
+
         if (false == docs.contains(doc)) {
             docs.addElement(doc);
         }
 
+        int docId = docs.indexOf(doc);
+
         // index the content for search purposes
+        int termPos = 0;
         for (String term : doc.split(TOKENIZER_REGEX)) {
-            if (stopwords.contains(term)) continue;
-            if (false == inverted.containsKey(term)) {
-                // add a new list
-                Map<Integer, Integer> list = new HashMap<Integer, Integer>();
-                list.put(docs.indexOf(doc), 1);
+            if (stopwords.contains(term)) {
+                termPos++;
+                continue;
+            }
 
-                inverted.put(term, list);
+            if (!inverted.containsKey(term)) {
+                // add a new term metadata
+                HashMap<Integer, TermInfo> metadata = new HashMap<>();
+                metadata.put(docId, new TermInfo(termPos));
+
+                inverted.put(term, metadata);
             } else {
-                Map<Integer, Integer> list = inverted.get(term);
-                // check if is a term in the same doc
-                int docId = docs.indexOf(doc);
+                // the term has already been indexed, update the associated metadata
+                Map<Integer, TermInfo> metadata = inverted.get(term);
 
-                if (list.containsKey(docId)) {
-                    int amount = list.get(docId);
-                    list.put(docId, ++amount);
+                // check if is a term in the same doc
+                if (metadata.containsKey(docId)) {
+                    // existing document
+                    TermInfo termInfo = metadata.get(docId);
+                    termInfo.addPosition(termPos);
+
+                    metadata.put(docId, termInfo);
                 } else {
-                    list.put(docId, 1);
+                    // new document
+                    TermInfo termInfo = new TermInfo(termPos);
+                    metadata.put(docId, termInfo);
                 }
 
-                inverted.put(term, list);
+                inverted.put(term, metadata);
             }
+
+            termPos++;
         }
     }
 
@@ -109,11 +124,34 @@ public class InvertedIndex {
         for (int docId : matchedDocs) {
             double score = 0.0;
 
-            for (String term : query.split("\\W+")) {
-                double tf = Math.sqrt(inverted.get(term).get(docId) == null ? 0 : inverted.get(term).get(docId));
+            List<Integer> previousPositions = null;
+            for (String term : query.split(TOKENIZER_REGEX)) {
+                System.out.println(term);
+                double tf = Math.sqrt(inverted.get(term).get(docId) == null ?
+                        0 : inverted.get(term).get(docId).getFreq());
 //                double idf = Math.log10(docs.size() / (double) inverted.get(term).size());
                 double idf = Math.pow((1 + Math.log10(docs.size() / (double) inverted.get(term).size() + 1)), 2);
                 score += tf * idf;
+                List<Integer> positions = inverted.get(term).get(docId) == null ? null : inverted.get(term).get(docId).getPositions();
+
+                System.out.println(positions);
+                if (previousPositions != null && positions != null) {
+                    // find the minimum difference between positions
+                    int posDiff = Integer.MAX_VALUE;
+                    for (int pos1 : previousPositions) {
+                        for (int pos2 : positions) {
+                            int diff = Math.abs(pos1 - pos2);
+
+                            posDiff = Math.min(diff, posDiff);
+                        }
+                    }
+
+                    System.out.println("==>" + posDiff);
+                    System.out.println(score/posDiff);
+                    score /= posDiff;
+                }
+
+                previousPositions = positions;
 
                 if (LOG.isDebugEnabled()) {
                     LOG.info("tf: " + tf);
@@ -121,7 +159,7 @@ public class InvertedIndex {
                 }
             }
 
-            if (LOG.isDebugEnabled()) {
+            if (!LOG.isDebugEnabled()) {
                 LOG.info("score: " + score);
             }
 
@@ -154,24 +192,25 @@ public class InvertedIndex {
     public static void main(String[] args) throws IOException {
         InvertedIndex index = new InvertedIndex();
 
+//        String[] data = new String[]{
+//                "A brilliant, festive study of JS Bach uses literature and painting to illuminate his 'dance-impregnated' music, writes Peter Conrad",
+//                "Fatima Bhutto on Malala Yousafzai's fearless and still-controversial memoir",
+//                "Grisham's sequel to A Time to Kill is a solid courtroom drama about racial prejudice marred by a flawless white hero, writes John O'Connell",
+//                "This strange repackaging of bits and pieces does the Man Booker winner no favours, says Sam Leith",
+//                "Another book with music related content music"
+//        };
         String[] data = new String[]{
-                "A brilliant, festive study of JS Bach uses literature and painting to illuminate his 'dance-impregnated' music, writes Peter Conrad",
-                "Fatima Bhutto on Malala Yousafzai's fearless and still-controversial memoir",
-                "Grisham's sequel to A Time to Kill is a solid courtroom drama about racial prejudice marred by a flawless white hero, writes John O'Connell",
-                "This strange repackaging of bits and pieces does the Man Booker winner no favours, says Sam Leith",
-                "Another book with music related content music"
+                "world yellow hello",
+                "hello world yellow",
         };
 
         for (String str : data) {
             index.indexDocument(str);
         }
-//        compinit -i -d "${ZSH_COMPDUMP}"
-//        +#  prompt_status
-//                +#  prompt_virtualenv
-//                +#  prompt_context
-        System.out.println("query: music" );
 
-        Vector<String> results = index.search("music");
+        System.out.println("query: music");
+
+        Vector<String> results = index.search("hello world");
 
         System.out.println(results.size() + " documents found");
 
